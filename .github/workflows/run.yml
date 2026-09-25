@@ -1,12 +1,20 @@
 name: BTC Match Stream
 
 on:
-  workflow_dispatch:   # only runs when you click "Run workflow" in the Actions tab
+  workflow_dispatch:   # manual trigger still available
+  schedule:
+    - cron: '0 0 * * *'   # starts 00:00 UTC block (runs until 05:45)
+    - cron: '0 6 * * *'   # starts 06:00 UTC block (runs until 11:45)
+    - cron: '0 12 * * *'  # starts 12:00 UTC block (runs until 16:00)
+
+concurrency:
+  group: btc-match-stream
+  cancel-in-progress: true   # if a run somehow overlaps the next, cancel the old one
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 350   # stay under the ~360-min (6hr) hosted-runner cap
+    timeout-minutes: 350   # hard safety cap, stays under GitHub's 360-min hosted limit
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
@@ -19,5 +27,24 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run the bot
-        run: python BTC_Matched_order_aggressive_and_resting_analysis.py
+      - name: Run the bot until block end (auto-restart on crash)
+        run: |
+          # Figure out which block we're in and when it should stop (UTC)
+          hour=$(date -u +%H)
+          if [ "$hour" -lt 6 ]; then
+            stop_epoch=$(date -u -d "today 05:45:00" +%s)
+          elif [ "$hour" -lt 12 ]; then
+            stop_epoch=$(date -u -d "today 11:45:00" +%s)
+          else
+            stop_epoch=$(date -u -d "today 16:00:00" +%s)
+          fi
+
+          echo "Running until $(date -u -d @$stop_epoch) UTC"
+
+          while [ "$(date -u +%s)" -lt "$stop_epoch" ]; do
+            echo "Starting bot at $(date -u)"
+            python BTC_Matched_order_aggressive_and_resting_analysis.py || echo "Bot exited/crashed, restarting..."
+            sleep 5   # brief pause before restart to avoid crash-looping
+          done
+
+          echo "Block window closed, exiting cleanly."
