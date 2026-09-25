@@ -36,7 +36,7 @@ COINBASE_WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRODUCT_ID = "BTC-USD"
 NTFY_URL = "https://ntfy.sh/btc-tick-stream-notif"
 
-AGGRESSIVENESS_N = 48   # min consecutive trades on one taker order -> alert
+AGGRESSIVENESS_N = 45   # min consecutive trades on one taker order -> alert
 RESTING_N = 68          # min trades matched on one maker (resting) order -> alert
 NOTIFY_COOLDOWN_SEC = 5 # per message-type throttle window
 
