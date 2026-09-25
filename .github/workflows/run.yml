@@ -1,0 +1,23 @@
+name: BTC Match Stream
+
+on:
+  workflow_dispatch:   # only runs when you click "Run workflow" in the Actions tab
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # stay under the ~360-min (6hr) hosted-runner cap
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run the bot
+        run: python BTC_Matched_order_aggressive_and_resting_analysis.py
