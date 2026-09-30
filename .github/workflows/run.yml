@@ -1,35 +1,33 @@
-name: BTC stream
+name: BTC Daily Analysis
 
 on:
   schedule:
-    - cron: "0 18 * * 0-4"   # 01:00 ICT Mon-Fri
-    - cron: "0 22 * * 0-4"   # 05:00 ICT Mon-Fri
-    - cron: "0 4 * * 1-5"    # 11:00 ICT Mon-Fri
+    - cron: "0 1 * * *"  # Every day at 1:00 AM UTC
   workflow_dispatch:
     inputs:
       hours:
         description: "How long to run (hours)"
-        default: "4"
+        default: "23"
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 1380  # 23 hours - GitHub Actions max is 6 hours for free tier, 35 hours for enterprise
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install websocket-client requests
-      - name: Run for the window
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      
+      - name: Run analysis for 23 hours
         env:
-          SCHEDULE: ${{ github.event.schedule }}
-          HOURS: ${{ github.event.inputs.hours }}
+          HOURS: ${{ github.event.inputs.hours || '23' }}
         run: |
-          case "$SCHEDULE" in
-            "0 18 * * 0-4") D=12600 ;;   # 3.5h
-            "0 22 * * 0-4") D=18000 ;;   # 5h
-            "0 4 * * 1-5")  D=14400 ;;   # 4h
-            *) D=$(( ${HOURS:-4} * 3600 )) ;;   # manual run
-          esac
-          timeout $D python BTC_Matched_order_aggressive_and_resting_analysis.py || true
+          # Calculate duration in seconds (23 hours = 82800 seconds)
+          DURATION=$((${HOURS} * 3600))
+          echo "Running script for ${HOURS} hours (${DURATION} seconds)"
+          timeout $DURATION python BTC_Matched_order_aggressive_and_resting_analysis.py || true
