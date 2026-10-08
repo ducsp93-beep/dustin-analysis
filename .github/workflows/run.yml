@@ -2,32 +2,42 @@ name: BTC Daily Analysis
 
 on:
   schedule:
-    - cron: "0 1 * * *"  # Every day at 1:00 AM UTC
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs:
       hours:
         description: "How long to run (hours)"
-        default: "23"
+        default: "5"
 
 jobs:
-  run:
+  btc-analysis:
     runs-on: ubuntu-latest
-    timeout-minutes: 1380  # 23 hours - GitHub Actions max is 6 hours for free tier, 35 hours for enterprise
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
-      
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      
-      - name: Run analysis for 23 hours
+      - run: pip install -r requirements.txt
+      - name: Run BTC analysis
         env:
-          HOURS: ${{ github.event.inputs.hours || '23' }}
+          HOURS: ${{ github.event.inputs.hours || '5' }}
         run: |
-          # Calculate duration in seconds (23 hours = 82800 seconds)
           DURATION=$((${HOURS} * 3600))
-          echo "Running script for ${HOURS} hours (${DURATION} seconds)"
           timeout $DURATION python BTC_Matched_order_aggressive_and_resting_analysis.py || true
+
+  orderbook-monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run Coinbase orderbook monitor
+        env:
+          HOURS: ${{ github.event.inputs.hours || '5' }}
+        run: |
+          DURATION=$((${HOURS} * 3600))
+          timeout $DURATION python coinbase_orderbook_monitor_v3.py || true
