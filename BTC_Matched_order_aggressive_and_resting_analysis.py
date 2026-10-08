@@ -34,7 +34,7 @@ import websocket  # pip install websocket-client
 # ---------------------------------------------------------------------------
 COINBASE_WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRODUCT_ID = "BTC-USD"
-NTFY_URL = "https://ntfy.sh/btc-tick-stream-notif"
+NTFY_URL = "https://ntfy.sh/btc-tick-stream-notif-mobile"
 
 AGGRESSIVENESS_N = 32   # min consecutive trades on one taker order -> alert
 RESTING_N = 52          # min trades matched on one maker (resting) order -> alert
