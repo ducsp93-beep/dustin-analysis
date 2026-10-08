@@ -20,7 +20,7 @@ import websockets
 # 1) Parameters
 # ----------------------------------------------------------------------------
 PAIR = "BTC-USD"
-NTFY_URL = "https://ntfy.sh/btc-coinbase-orderbook-analysis"
+NTFY_URL = "https://ntfy.sh/btc-coinbase-orderbook-analysis-mobile"
 CASH_N = 48
 ACTIVE_LEVEL_N = 52
 EXECUTED_LEVEL_N = 40
