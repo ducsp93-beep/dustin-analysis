@@ -1,2 +1,4 @@
 websocket-client
 requests
+websockets
+aiohttp
