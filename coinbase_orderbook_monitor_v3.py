@@ -24,7 +24,7 @@ NTFY_URL = "https://ntfy.sh/orderbook_mobile"
 CASH_N = 48
 ACTIVE_LEVEL_N = 52
 EXECUTED_LEVEL_N = 50
-TOUCH_N = 26
+TOUCH_N = 36
 
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRIMARY_CHANNEL = "level2_batch"
