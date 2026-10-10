@@ -23,7 +23,7 @@ PAIR = "BTC-USD"
 NTFY_URL = "https://ntfy.sh/orderbook_mobile"
 CASH_N = 48
 ACTIVE_LEVEL_N = 52
-EXECUTED_LEVEL_N = 40
+EXECUTED_LEVEL_N = 50
 TOUCH_N = 26
 
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
