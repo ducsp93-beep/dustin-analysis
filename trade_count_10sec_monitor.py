@@ -23,7 +23,7 @@ NOTIFICATION_URL = "https://ntfy.sh/trade_count_coinbase_10sec"
 
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRODUCT_ID = "BTC-USD"
-WINDOW_SECONDS = 10
+WINDOW_SECONDS = 15
 BACKOFF_START = 1     # seconds
 BACKOFF_MAX = 30      # seconds
 # ---------------------------------------------------------------------------
