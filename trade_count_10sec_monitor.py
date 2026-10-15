@@ -18,12 +18,12 @@ import websockets
 
 # ----------------------------- Parameters ----------------------------------
 MIN_RATE = 2          # count <= MIN_RATE  -> "Lowest activities" alert
-MAX_RATE = 200        # count >= MAX_RATE  -> "Highest activities" alert
+MAX_RATE = 100        # count >= MAX_RATE  -> "Highest activities" alert
 NOTIFICATION_URL = "https://ntfy.sh/trade_count_coinbase_10sec"
 
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRODUCT_ID = "BTC-USD"
-WINDOW_SECONDS = 15
+WINDOW_SECONDS = 10
 BACKOFF_START = 1     # seconds
 BACKOFF_MAX = 30      # seconds
 # ---------------------------------------------------------------------------
