@@ -8,7 +8,7 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 350
     strategy:
       fail-fast: false     # if one script fails, the other still runs
       matrix:
