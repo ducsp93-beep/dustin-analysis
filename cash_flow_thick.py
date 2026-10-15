@@ -24,8 +24,8 @@ PRODUCT_ID = "BTC-USD"
 NTFY_URL = "https://ntfy.sh/mobile_cash_thick"
 
 TIME_WINDOW = 10   # seconds
-DECREASE_N = 6     # min list length to notify on decreasing flow
-INCREASE_N = 8     # min list length to notify on increasing flow
+DECREASE_N = 5     # min list length to notify on decreasing flow
+INCREASE_N = 5     # min list length to notify on increasing flow
 
 RECONNECT_DELAY = 5  # seconds
 UTC7 = timezone(timedelta(hours=7))
