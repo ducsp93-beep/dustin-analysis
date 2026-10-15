@@ -23,8 +23,8 @@ WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRODUCT_ID = "BTC-USD"
 NTFY_URL = "https://ntfy.sh/mobile_cash_thin"
 
-TIME_WINDOW = 5   # seconds
-DECREASE_N = 5     # min list length to notify on decreasing flow
+TIME_WINDOW = 4   # seconds
+DECREASE_N = 6     # min list length to notify on decreasing flow
 INCREASE_N = 6     # min list length to notify on increasing flow
 
 RECONNECT_DELAY = 5  # seconds
