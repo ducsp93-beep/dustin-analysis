@@ -25,4 +25,4 @@ jobs:
         run: pip install websockets aiohttp
 
       - name: Run monitor (stops after 5h 50m)
-        run: timeout --signal=INT 350m python trade_count_12sec_150rate.py || [ $? -eq 124 ]
+        run: timeout --signal=INT 350m python trade_count_12sec.py || [ $? -eq 124 ]
