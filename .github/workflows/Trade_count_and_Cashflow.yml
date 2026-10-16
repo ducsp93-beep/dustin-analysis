@@ -21,8 +21,8 @@ jobs:
         with:
           python-version: '3.12'
 
-      - run: pip install websockets requests
-
+      - run: pip install -r requirements.txt
+      
       - name: Run scripts inside the window
         env:
           SCHEDULE: ${{ github.event.schedule }}
