@@ -21,9 +21,9 @@ import websockets
 # ----------------------------- Parameters ----------------------------------
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRODUCT_ID = "BTC-USD"
-NTFY_URL = "https://ntfy.sh/mobile_cash_thin"
+NTFY_URL = "https://ntfy.sh/cashflow_5sec_6window"
 
-TIME_WINDOW = 2   # seconds
+TIME_WINDOW = 5   # seconds
 DECREASE_N = 6     # min list length to notify on decreasing flow
 INCREASE_N = 6     # min list length to notify on increasing flow
 
