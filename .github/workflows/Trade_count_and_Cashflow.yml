@@ -12,22 +12,31 @@ permissions:
 
 jobs:
   run:
+    name: ${{ matrix.script }}
     runs-on: ubuntu-latest
     timeout-minutes: 340   # safety net only; the real deadline is enforced below
+    strategy:
+      fail-fast: false
+      matrix:
+        script:
+          - cash_flow_thick.py
+          - cash_flow_thin.py
+          - trade_count_12sec.py
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
 
       - run: pip install -r requirements.txt
-      
-      - name: Run scripts inside the window
+
+      - name: Run script inside the window
         env:
           SCHEDULE: ${{ github.event.schedule }}
+          SCRIPT: ${{ matrix.script }}
         run: |
-          # Map the cron that fired to its window (UTC)
           case "$SCHEDULE" in
             "40 0 * * *") START=01:00; END=05:00 ;;
             "40 4 * * *") START=05:00; END=10:00 ;;
@@ -41,13 +50,11 @@ jobs:
           end_ts=$(date -u -d "today $END" +%s)
           now=$(date -u +%s)
 
-          # Too late: window already over
           if [ "$now" -ge "$end_ts" ]; then
             echo "Window $START-$END UTC already over, skipping."
             exit 0
           fi
 
-          # Started early (cron is set 20 min ahead): wait for the window to open
           if [ "$now" -lt "$start_ts" ]; then
             wait_s=$(( start_ts - now ))
             if [ "$wait_s" -gt 1800 ]; then
@@ -58,12 +65,8 @@ jobs:
             sleep "$wait_s"
           fi
 
-          # Hard stop at END, no matter how late we started
           remaining=$(( end_ts - $(date -u +%s) ))
-          echo "Running for ${remaining}s, until $END UTC"
+          echo "Running $SCRIPT for ${remaining}s, until $END UTC"
 
-          for f in cash_flow_thick.py cash_flow_thin.py trade_count_12sec.py; do
-            timeout -k 10 "$remaining" python -u "$f" &
-          done
-          wait
+          timeout -k 10 "$remaining" python -u "$SCRIPT" || echo "Stopped (exit $?)"
           echo "Window closed."
