@@ -17,7 +17,7 @@ import websockets
 
 # ----------------------------- Parameters ----------------------------------
 NOTIFICATION_URL = "https://ntfy.sh/price_concentration"
-CANDLE_DURATION = 10        # seconds per window (clock-aligned)
+CANDLE_DURATION = 180        # seconds per window (clock-aligned)
 CONCENTRATION_N = 5         # min number of windows to count as a concentration
 DEBUG = True                # print a line for each completed window
 
