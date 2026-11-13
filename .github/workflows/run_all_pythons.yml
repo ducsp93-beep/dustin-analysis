@@ -1,173 +1,192 @@
-# Save as: .github/workflows/daily-analysis.yml  (must be on the default branch)
+name: Daily Run
+
+# Place this file at .github/workflows/daily.yml (and delete the old root-level run.yml).
 #
-# Rules implemented:
-#   * Window: 01:00 - 15:00 UTC, once per day, max 5.5h per run
-#   * Started before 01:00 (00:00-00:59) -> wait until 01:00
-#   * Started late                       -> hard stop at 15:00 UTC
-#   * Started 15:00 - 23:59              -> skipped quietly (logged as a notice, run stays green, no email)
-#   * Several cron triggers act as retries; once a successful run exists today, the rest exit cleanly
-#   * Every .py file in the repo is discovered automatically (minus EXCLUDE_REGEX)
-#   * Each script runs as its own matrix job = its own separate console/log
-#   * A script still running at the deadline is stopped and counts as a NORMAL finish
-#     (the BTC bot loops forever by design, so the deadline is its expected end)
-
-name: daily-analysis
-
-env:
-  # Python files matching this regex are NOT run (helpers, tests, packaging files...).
-  # Paths are relative to repo root. Add more alternatives with |
-  EXCLUDE_REGEX: '(^|/)(__init__|setup|conftest)\.py$|^tests?/|^\.github/'
-  PYTHON_VERSION: "3.12"
-  WINDOW_START: "01:00"      # UTC
-  WINDOW_END: "15:00"        # UTC
-  MAX_RUN_SECONDS: "19800"   # 5.5 hours
-  MIN_RUN_SECONDS: "600"     # don't bother starting if less than 10 min remain
+# Behaviour
+#   * Runs once per day, only inside the 01:00-15:00 UTC window.
+#   * Each run job lasts at most 5.5h and never past 15:00 UTC.
+#   * Every *.py file in the repo gets its own job (= its own console), all in parallel.
+#   * Several backup crons exist in case GitHub delays or drops one; the gate skips
+#     silently when today's run has already been claimed by an earlier trigger.
 
 on:
   schedule:
-    # Off the top of the hour on purpose (GitHub is busiest at :00).
-    # Extra triggers are retries in case GitHub delays/drops one.
-    - cron: "7 1 * * *"
-    - cron: "7 5 * * *"
-    - cron: "7 9 * * *"
-  workflow_dispatch:
-    inputs:
-      force:
-        description: "Run even if a successful run already exists today (window still enforced)"
-        type: boolean
-        default: false
+    # Off the top of the hour on purpose (GitHub is busiest at :00). All times UTC.
+    - cron: "13 1 * * *"   # primary
+    - cron: "13 5 * * *"   # backup
+    - cron: "13 9 * * *"   # backup
+    - cron: "13 13 * * *"  # backup (leaves ~1h45 of runtime)
 
 permissions:
   contents: read
   actions: read
 
-# Never let two runs overlap (e.g. a slow 01:07 run and the 05:07 retry).
-concurrency:
-  group: daily-analysis
-  cancel-in-progress: false
+env:
+  OPEN_SECS: 3600        # window opens  01:00 UTC (seconds after midnight)
+  CLOSE_SECS: 54000      # window closes 15:00 UTC
+  MAX_RUN_SECS: 19800    # 5.5 hours
+  MIN_RUN_SECS: 1800     # skip if less than 30 min would remain
+  WORKFLOW_FILE: daily.yml
 
 jobs:
-  # -------------------------------------------------------------------------
-  # Job 1: discover scripts, decide whether to run, wait for the window,
-  #        compute the shared deadline
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------- gate
   gate:
-    name: Time-window gate
+    name: gate
     runs-on: ubuntu-latest
-    timeout-minutes: 90   # covers waiting up to 1h before the window opens
+    timeout-minutes: 90          # only ever waits up to ~1h
+    permissions:
+      contents: read
+      actions: write             # needed only for the keepalive call below
     outputs:
-      run: ${{ steps.gate.outputs.run }}
-      deadline: ${{ steps.gate.outputs.deadline }}
-      matrix: ${{ steps.gate.outputs.matrix }}
+      run: ${{ steps.decide.outputs.run }}
+      scripts: ${{ steps.scripts.outputs.scripts }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repo
+        uses: actions/checkout@v4
 
-      - name: Discover scripts, check window, compute deadline
-        id: gate
+      # Best effort: re-enable call so GitHub's 60-day inactivity auto-disable
+      # does not silently stop the schedule. Never fails the run.
+      - name: Keepalive
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          FORCE: ${{ inputs.force }}
+          REPO: ${{ github.repository }}
+        run: gh api -X PUT "repos/$REPO/actions/workflows/$WORKFLOW_FILE/enable"
+
+      - name: Decide - wait, run or skip
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
-          echo "run=false" >> "$GITHUB_OUTPUT"   # default; overwritten below on success
-
-          today=$(date -u +%F)
-          window_start=$(date -u -d "$today $WINDOW_START:00" +%s)
-          window_end=$(date -u -d "$today $WINDOW_END:00" +%s)
-
-          # 0) Discover every tracked .py file, minus exclusions
-          files=$(git ls-files -- '*.py' | grep -Ev "$EXCLUDE_REGEX" || true)
-          if [ -z "$files" ]; then
-            echo "::notice::No Python scripts found. Nothing to do."
-            exit 0
-          fi
-          echo "Discovered scripts:"; echo "$files"
-          matrix=$(echo "$files" | jq -R . | jq -sc '{script: .}')
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-
-          # 1) Already succeeded today? (retries exit cleanly)
-          if [ "${FORCE:-false}" != "true" ]; then
-            done_count=$(gh run list --repo "$GITHUB_REPOSITORY" \
-              --workflow daily-analysis.yml --status success \
-              --created ">=$today" --json databaseId --jq 'length')
-            if [ "$done_count" -gt 0 ]; then
-              echo "::notice::A successful run already exists for $today UTC. Nothing to do."
-              exit 0
-            fi
-          fi
+          midnight=$(date -u -d "$(date -u +%F) 00:00:00" +%s)
+          open=$((midnight + OPEN_SECS))
+          close=$((midnight + CLOSE_SECS))
 
           now=$(date -u +%s)
-
-          # 2) Too early (00:00-00:59 UTC): wait until the window opens
-          if [ "$now" -lt "$window_start" ]; then
-            wait=$(( window_start - now ))
-            echo "Started early. Waiting ${wait}s until $WINDOW_START UTC..."
-            sleep "$wait"
+          if (( now < open )); then
+            echo "Too early ($(date -u +%T) UTC): waiting $((open - now))s for 01:00 UTC"
+            sleep $((open - now))
             now=$(date -u +%s)
           fi
 
-          # 3) Too late (15:00-23:59 UTC): skip quietly (green run, no notification)
-          remaining_window=$(( window_end - now ))
-          if [ "$remaining_window" -lt "$MIN_RUN_SECONDS" ]; then
-            echo "::notice::Started at $(date -u +%T) UTC, outside the $WINDOW_START-$WINDOW_END window (or too little time left). Skipping today's run."
+          if (( close - now < MIN_RUN_SECS )); then
+            echo "Less than $((MIN_RUN_SECS / 60)) min left before 15:00 UTC: skipping"
+            echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # 4) Deadline = min(now + 5.5h, 15:00 UTC)
-          max_end=$(( now + MAX_RUN_SECONDS ))
-          deadline=$(( max_end < window_end ? max_end : window_end ))
-          echo "Deadline: $(date -u -d "@$deadline" '+%F %T') UTC"
-          echo "run=true" >> "$GITHUB_OUTPUT"
-          echo "deadline=$deadline" >> "$GITHUB_OUTPUT"
+          # Has an earlier trigger today already started (or finished) the job?
+          today=$(date -u +%F)
+          mine=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq .created_at)
+          others=$(gh api "repos/$REPO/actions/workflows/$WORKFLOW_FILE/runs?created=$today&per_page=100" \
+            | jq -r --arg mine "$mine" --argjson cur "$RUN_ID" '
+                .workflow_runs[]
+                | select(.id != $cur
+                         and (.created_at < $mine or (.created_at == $mine and .id < $cur)))
+                | "\(.id) \(.status)"')
 
-  # -------------------------------------------------------------------------
-  # Job 2: one job per script, each with its own console, sharing the deadline
-  # -------------------------------------------------------------------------
+          claimed=false
+          while read -r id status; do
+            [ -z "${id:-}" ] && continue
+            if [ "$status" != "completed" ]; then
+              echo "Earlier run $id ($status) owns today's slot: skipping"
+              claimed=true; break
+            fi
+            n=$(gh api "repos/$REPO/actions/runs/$id/jobs?per_page=100" \
+              | jq '[.jobs[] | select(.name | startswith("run")) | select(.conclusion != "skipped")] | length')
+            if [ "$n" -gt 0 ]; then
+              echo "Earlier run $id already did today's job: skipping"
+              claimed=true; break
+            fi
+          done <<< "$others"
+
+          if [ "$claimed" = true ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Go: $(date -u +%T) UTC, $(( (close - now) / 60 )) min until 15:00 UTC"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Discover Python files
+        id: scripts
+        if: steps.decide.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          json=$(git ls-files '*.py' | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "Scripts: $json"
+          echo "scripts=$json" >> "$GITHUB_OUTPUT"
+          if [ "$json" = "[]" ]; then echo "No .py files found"; fi
+
+  # ----------------------------------------------------------------- run
   run:
-    name: ${{ matrix.script }}
+    # One job per script, so each script has its own console/log.
+    name: run (${{ matrix.script }})
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    if: needs.gate.outputs.run == 'true' && needs.gate.outputs.scripts != '[]'
     runs-on: ubuntu-latest
-    timeout-minutes: 340   # backstop only; the real cutoff is the deadline below
+    timeout-minutes: 345         # backstop, under the 360-min hosted-runner cap
     strategy:
-      fail-fast: false     # one failing script doesn't kill the others
-      # max-parallel: 1    # uncomment to run scripts one after another instead
-      matrix: ${{ fromJSON(needs.gate.outputs.matrix) }}
+      fail-fast: false
+      matrix:
+        script: ${{ fromJSON(needs.gate.outputs.scripts) }}
     steps:
-      - uses: actions/checkout@v4
+      # Computed first, so runner queue time between gate and run is accounted for.
+      - name: Compute deadline
+        id: dl
+        run: |
+          set -euo pipefail
+          now=$(date -u +%s)
+          midnight=$(date -u -d "$(date -u +%F) 00:00:00" +%s)
+          close=$((midnight + CLOSE_SECS))
+          cap=$((now + MAX_RUN_SECS))
+          deadline=$(( cap < close ? cap : close ))
+          remaining=$((deadline - now))
+          if (( remaining < MIN_RUN_SECS )); then
+            echo "Only $((remaining / 60)) min left before 15:00 UTC: skipping"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Deadline: $(date -u -d @"$deadline" +'%F %T') UTC ($((remaining / 60)) min from now)"
+            echo "DEADLINE=$deadline" >> "$GITHUB_ENV"
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
 
-      - uses: actions/setup-python@v5
+      - name: Check out repo
+        if: steps.dl.outputs.go == 'true'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.dl.outputs.go == 'true'
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: "3.11"
           cache: pip
-          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
-        run: |
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        if: steps.dl.outputs.go == 'true'
+        run: pip install -r requirements.txt
 
-      - name: Run ${{ matrix.script }} (hard stop at deadline)
+      - name: Run ${{ matrix.script }}
+        if: steps.dl.outputs.go == 'true'
         env:
-          DEADLINE: ${{ needs.gate.outputs.deadline }}
           SCRIPT: ${{ matrix.script }}
+          PYTHONUNBUFFERED: "1"
         run: |
-          set -uo pipefail
-          # leave 30s for the kill-after grace period so we never pass the deadline
-          remaining=$(( DEADLINE - $(date -u +%s) - 30 ))
-          if [ "$remaining" -lt 60 ]; then
-            echo "::notice::Deadline already reached before $SCRIPT could start. Skipping."
+          remaining=$((DEADLINE - $(date -u +%s)))
+          if (( remaining < 60 )); then
+            echo "Setup used up the time budget: nothing to run"
             exit 0
           fi
-          echo "Running $SCRIPT with ${remaining}s budget (until $(date -u -d "@$DEADLINE" +%T) UTC)"
-
-          # SIGTERM at the deadline (lets Python clean up), SIGKILL 30s later
+          echo "Running $SCRIPT for up to $((remaining / 60)) min (until $(date -u -d @"$DEADLINE" +%T) UTC)"
+          set +e
           timeout --signal=TERM --kill-after=30 "$remaining" python -u "$SCRIPT"
-          code=$?
-
-          # 124 = stopped by timeout, 137 = had to be killed after the grace period.
-          # Reaching the deadline is the expected end for long-running scripts.
-          if [ "$code" -eq 124 ] || [ "$code" -eq 137 ]; then
-            echo "::notice::$SCRIPT reached the deadline and was stopped (normal)."
+          rc=$?
+          set -e
+          # 124 = stopped by timeout (expected: the bot streams forever); 137 = needed SIGKILL
+          if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+            echo "Stopped at deadline as planned"
             exit 0
           fi
-          exit "$code"
+          exit "$rc"
