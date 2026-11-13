@@ -23,7 +23,7 @@ import websockets
 # Parameters
 # ----------------------------------------------------------------------
 NOTIFICATION_URL = "https://ntfy.sh/traded_cash"
-TIME_WINDOW = 18      # seconds (any positive number, e.g. 18, 36)
+TIME_WINDOW = 36      # seconds (any positive number, e.g. 18, 36)
 RISE_N = 6            # min queue length (windows) to notify rising
 FALL_N = 5            # min queue length (windows) to notify falling
 
