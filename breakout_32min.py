@@ -21,10 +21,10 @@ import websockets
 
 # ----------------------------- Parameters ---------------------------------
 NOTIFICATION_URL = "https://ntfy.sh/new_min_max"
-TIME_WINDOW = 1            # minutes (fixed time unit)
-WINDOW_SERIES = 10         # deque holds ~WINDOW_SERIES * TIME_WINDOW minutes
-INITIAL_SERIES = 2         # old extreme must be >= this many windows after deque start
-CONSOLIDATION_SERIES = 5   # old extreme must be >= this many windows old when broken
+TIME_WINDOW = 2            # minutes (fixed time unit)
+WINDOW_SERIES = 16         # deque holds ~WINDOW_SERIES * TIME_WINDOW minutes
+INITIAL_SERIES = 3         # old extreme must be >= this many windows after deque start
+CONSOLIDATION_SERIES = 8   # old extreme must be >= this many windows old when broken
 
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRODUCT_ID = "BTC-USD"
