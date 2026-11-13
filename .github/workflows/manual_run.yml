@@ -1,0 +1,80 @@
+name: Run All Python Scripts (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      python_version:
+        description: "Python version"
+        required: false
+        default: "3.11"
+        type: string
+      stop_on_error:
+        description: "Stop at the first failing script?"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  run-all:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run every Python file
+        shell: bash
+        run: |
+          failed=()
+          files=$(find . -type f -name "*.py" \
+            -not -path "./.git/*" -not -path "*/venv/*" -not -path "*/.venv/*" \
+            -not -path "*/__pycache__/*" -not -name "__init__.py" -not -name "setup.py" | sort)
+
+          echo "Found scripts:"
+          echo "$files"
+
+          for f in $files; do
+            echo ""
+            echo "::group::Running $f"
+            if python "$f"; then
+              echo "OK: $f"
+            else
+              echo "::error::FAILED: $f"
+              failed+=("$f")
+              if [ "${{ inputs.stop_on_error }}" = "true" ]; then
+                echo "::endgroup::"
+                break
+              fi
+            fi
+            echo "::endgroup::"
+          done
+
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo ""
+            echo "Failed scripts:"
+            printf ' - %s\n' "${failed[@]}"
+            exit 1
+          fi
+
+      - name: Upload any output files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: script-output
+          path: |
+            output/
+            results/
+            **/*.csv
+            **/*.png
+            **/*.xlsx
+          if-no-files-found: ignore
