@@ -24,7 +24,7 @@ import websockets
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRODUCT_ID = "BTC-USD"
 NOTIFICATION_URL = "https://ntfy.sh/price_continuity"
-CANDLE_DURATION = 18      # seconds
+CANDLE_DURATION = 28      # seconds
 CANDLE_COUNT = 6        # minimum list length for a notification
 RECONNECT_DELAY = 5      # seconds
 UTC7 = timezone(timedelta(hours=7))
