@@ -22,8 +22,8 @@ import websockets
 # ----------------------------- Parameters ---------------------------------
 NOTIFICATION_URL = "https://ntfy.sh/new_min_max"
 TIME_WINDOW = 2            # minutes (fixed time unit)
-WINDOW_SERIES = 16         # deque holds ~WINDOW_SERIES * TIME_WINDOW minutes
-INITIAL_SERIES = 3         # old extreme must be >= this many windows after deque start
+WINDOW_SERIES = 20         # deque holds ~WINDOW_SERIES * TIME_WINDOW minutes
+INITIAL_SERIES = 6         # old extreme must be >= this many windows after deque start
 CONSOLIDATION_SERIES = 8   # old extreme must be >= this many windows old when broken
 
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
