@@ -6,7 +6,7 @@ on:
       duration_minutes:
         description: "How many minutes to let each script run before stopping it"
         required: true
-        default: "10"
+        default: "310"
         type: string
       python_version:
         description: "Python version"
