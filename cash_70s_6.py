@@ -24,7 +24,7 @@ import websockets
 # ----------------------------------------------------------------------
 NOTIFICATION_URL = "https://ntfy.sh/traded_cash"
 TIME_WINDOW = 70      # seconds (any positive number, e.g. 18, 36)
-RISE_N = 6            # min queue length (windows) to notify rising
+RISE_N = 5            # min queue length (windows) to notify rising
 FALL_N = 5            # min queue length (windows) to notify falling
 
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
