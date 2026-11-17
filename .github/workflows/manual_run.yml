@@ -1,99 +1,54 @@
-name: Manual All pythons
+name: Run all Python files
 
 on:
-  workflow_dispatch:
-    inputs:
-      duration_minutes:
-        description: "How many minutes to let each script run before stopping it"
-        required: true
-        default: "350"
-        type: string
-      python_version:
-        description: "Python version"
-        required: false
-        default: "3.11"
-        type: string
+  workflow_dispatch:   # manual trigger only
 
 jobs:
-  run-all:
+  discover:
     runs-on: ubuntu-latest
-    timeout-minutes: 360
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
     steps:
-      - name: Check out repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      # (1) Find all .py files and give each one a delay index (0, 1, 2, ...)
+      - name: List python files
+        id: list
+        run: |
+          matrix=$(find . -name '*.py' \
+            -not -path './.git/*' -not -path './.github/*' \
+            | sed 's|^\./||' | sort \
+            | jq -R -s -c 'split("\n")[:-1] | to_entries | map({file: .value, delay: .key})')
+          echo "$matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false          # one failing script doesn't cancel the others
+      matrix:
+        include: ${{ fromJson(needs.discover.outputs.matrix) }}
+    # (4) each job = its own console/log, named after the file
+    name: ${{ matrix.file }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
-          python-version: ${{ inputs.python_version }}
-          cache: pip
+          python-version: '3.12'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      - name: Run all Python files in parallel
-        shell: bash
+      # (3) stagger starts: file #0 waits 0s, #1 waits 1s, #2 waits 2s, ...
+      - name: Stagger start
         run: |
-          secs=$(( ${{ inputs.duration_minutes }} * 60 ))
-          mkdir -p _logs
+          echo "Waiting ${{ matrix.delay }}s before starting"
+          sleep ${{ matrix.delay }}
 
-          files=$(find . -type f -name "*.py" \
-            -not -path "./.git/*" -not -path "*/venv/*" -not -path "*/.venv/*" \
-            -not -path "*/__pycache__/*" -not -path "./_logs/*" \
-            -not -name "__init__.py" -not -name "setup.py" | sort)
-
-          echo "Found scripts:"
-          echo "$files"
-          echo "Each script will run for up to ${{ inputs.duration_minutes }} minutes."
-
-          pids=()
-          names=()
-          for f in $files; do
-            name=$(echo "$f" | sed 's|^\./||; s|/|__|g')
-            timeout "$secs" python -u "$f" > "_logs/$name.log" 2>&1 &
-            pids+=($!)
-            names+=("$f")
-          done
-
-          failed=()
-          for i in "${!pids[@]}"; do
-            rc=0
-            wait "${pids[$i]}" || rc=$?
-            if [ "$rc" -eq 0 ]; then
-              echo "FINISHED: ${names[$i]}"
-            elif [ "$rc" -eq 124 ]; then
-              echo "STOPPED AT TIME LIMIT (ok): ${names[$i]}"
-            else
-              echo "::error::FAILED (exit $rc): ${names[$i]}"
-              failed+=("${names[$i]}")
-            fi
-          done
-
-          echo ""
-          for log in _logs/*.log; do
-            echo "::group::Log: $log"
-            tail -n 200 "$log"
-            echo "::endgroup::"
-          done
-
-          if [ ${#failed[@]} -gt 0 ]; then
-            echo "Failed scripts:"
-            printf ' - %s\n' "${failed[@]}"
-            exit 1
-          fi
-
-      - name: Upload logs and output files
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: script-output
-          path: |
-            _logs/
-            output/
-            results/
-            **/*.csv
-            **/*.png
-            **/*.xlsx
-          if-no-files-found: ignore
+      # (2) all matrix jobs run in parallel
+      - name: Run ${{ matrix.file }}
+        run: python -u "${{ matrix.file }}"
