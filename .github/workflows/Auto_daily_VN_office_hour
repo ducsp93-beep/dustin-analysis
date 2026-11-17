@@ -1,0 +1,86 @@
+name: Run all Python files (daily 01:00 UTC)
+
+on:
+  schedule:
+    - cron: '0 1 * * *'     # 01:00 UTC every day (cron is always UTC)
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.list.outputs.matrix }}
+      in_window: ${{ steps.guard.outputs.ok }}
+    steps:
+      # Time guard: allowed window is 01:00-09:59 UTC.
+      # Anything from 10:00 UTC to 00:59 UTC (next day) is considered too late.
+      - name: Time guard
+        id: guard
+        run: |
+          hour=$((10#$(date -u +%H)))
+          echo "Job started at $(date -u) (UTC)"
+          if [ "$hour" -ge 1 ] && [ "$hour" -lt 10 ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Started outside the 01:00-09:59 UTC window -> exiting."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.ok == 'true'
+
+      - name: List python files
+        id: list
+        if: steps.guard.outputs.ok == 'true'
+        run: |
+          matrix=$(find . -name '*.py' \
+            -not -path './.git/*' -not -path './.github/*' \
+            | sed 's|^\./||' | sort \
+            | jq -R -s -c 'split("\n")[:-1] | to_entries | map({file: .value, delay: .key})')
+          echo "$matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: discover
+    if: needs.discover.outputs.in_window == 'true'   # skipped entirely if too late
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.discover.outputs.matrix) }}
+    name: ${{ matrix.file }}
+    steps:
+      # Re-check here too: matrix jobs can be queued and start much later
+      - name: Time guard
+        id: guard
+        run: |
+          hour=$((10#$(date -u +%H)))
+          echo "Job started at $(date -u) (UTC)"
+          if [ "$hour" -ge 1 ] && [ "$hour" -lt 10 ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Started outside the 01:00-09:59 UTC window -> exiting."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.guard.outputs.ok == 'true'
+
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.ok == 'true'
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        if: steps.guard.outputs.ok == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Stagger start
+        if: steps.guard.outputs.ok == 'true'
+        run: sleep ${{ matrix.delay }}
+
+      - name: Run ${{ matrix.file }}
+        if: steps.guard.outputs.ok == 'true'
+        run: python -u "${{ matrix.file }}"
