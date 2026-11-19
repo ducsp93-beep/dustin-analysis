@@ -25,8 +25,8 @@ import websockets
 
 # ----------------------------- parameters -----------------------------
 NOTIFICATION_URL = "https://ntfy.sh/average_cash_size"
-TIME_WINDOW = 45      # seconds (can be any value, e.g. 25 or 76)
-SERIES_N = 100         # number of window averages kept
+TIME_WINDOW = 60      # seconds (can be any value, e.g. 25 or 76)
+SERIES_N = 200         # number of window averages kept
 
 # ------------------------------ settings ------------------------------
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
