@@ -134,7 +134,7 @@ class Monitor:
 
     async def notify(self, kind: str, lst: list):
         size = len(lst)
-        title = f"Trade frequency {kind} for {fmt_duration(TIME_WINDOW * size)}"
+        title = f"Trade count {kind} for {fmt_duration(TIME_WINDOW * size)}"
         last = fmt_ts(self.last_trade) if self.last_trade else "n/a"
         body = "\n".join([
             f"Last trade at {last}",
