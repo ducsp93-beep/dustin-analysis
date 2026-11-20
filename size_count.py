@@ -18,7 +18,7 @@ import websockets
 
 # ----------------------------- Parameters -----------------------------
 NOTIFY_URL = "https://ntfy.sh/size_count"
-TIME_WINDOW = 30      # seconds (can be any positive number, e.g. 47)
+TIME_WINDOW = 60      # seconds (can be any positive number, e.g. 47)
 RISE_N = 5            # min rise_list size to notify
 FALL_N = 5            # min fall_list size to notify
 
