@@ -44,8 +44,8 @@ CHANNEL = "level2_batch"
 
 NOTIFY_URL = "https://ntfy.sh/best_quote"
 TIME_WINDOW = 80      # seconds
-GROW_RATE = 0.1       # 0..1
-DECLINE_RATE = 0.1    # 0..1
+GROW_RATE = 0.08       # 0..1
+DECLINE_RATE = 0.06    # 0..1
 GROW_N = 5
 DECLINE_N = 5
 
