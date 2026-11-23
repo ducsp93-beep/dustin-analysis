@@ -4,18 +4,36 @@ Monitor how often the best bid / best ask changes for BTC-USD on Coinbase
 (Exchange public feed, level2_batch channel) and send ntfy notifications
 when the per-window change count keeps growing or declining.
 
-Install:  pip install websockets requests sortedcontainers
-Run:      python btc_best_quote_monitor.py
+Just double-click this file (or run_monitor.bat). Missing packages
+(websockets, requests, sortedcontainers) are installed automatically on first run.
 """
 
 import asyncio
+import importlib
 import json
+import subprocess
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 
-import requests
-import websockets
-from sortedcontainers import SortedDict
+
+def _ensure_packages():
+    """Install any missing third-party packages so a double-click just works."""
+    needed = {"websockets": "websockets", "requests": "requests",
+              "sortedcontainers": "sortedcontainers"}
+    for module, pip_name in needed.items():
+        try:
+            importlib.import_module(module)
+        except ImportError:
+            print(f"Installing missing package: {pip_name} ...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pip_name])
+
+
+_ensure_packages()
+
+import requests  # noqa: E402
+import websockets  # noqa: E402
+from sortedcontainers import SortedDict  # noqa: E402
 
 # ----------------------------------------------------------------------
 # Parameters
@@ -25,7 +43,7 @@ PRODUCT_ID = "BTC-USD"
 CHANNEL = "level2_batch"
 
 NOTIFY_URL = "https://ntfy.sh/best_quote"
-TIME_WINDOW = 60      # seconds
+TIME_WINDOW = 80      # seconds
 GROW_RATE = 0.1       # 0..1
 DECLINE_RATE = 0.1    # 0..1
 GROW_N = 5
@@ -295,3 +313,10 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nStopped.")
+    except Exception as e:
+        print(f"\nFatal error: {e!r}")
+    # Keep the console window open so any message can be read after a double-click.
+    try:
+        input("\nPress Enter to close this window...")
+    except Exception:
+        pass
