@@ -22,7 +22,7 @@ import websockets
 # Parameters
 # ----------------------------------------------------------------------
 NOTIFICATION_URL = "https://ntfy.sh/Match_summary"
-TIME_WINDOW = 80          # seconds
+TIME_WINDOW = 60          # seconds
 RISE_N = 5
 RISE_RATE = 0.10          # between 0 and 1
 FALL_N = 5
