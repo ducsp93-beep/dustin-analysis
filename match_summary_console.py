@@ -24,9 +24,9 @@ import websockets
 NOTIFICATION_URL = "https://ntfy.sh/Match_summary"
 TIME_WINDOW = 60          # seconds
 RISE_N = 5
-RISE_RATE = 0.10          # between 0 and 1
+RISE_RATE = 0.06          # between 0 and 1
 FALL_N = 5
-FALL_RATE = 0.12          # between 0 and 1
+FALL_RATE = 0.08          # between 0 and 1
 
 WS_URL = "wss://ws-feed.exchange.coinbase.com"
 PRODUCT_ID = "BTC-USD"
